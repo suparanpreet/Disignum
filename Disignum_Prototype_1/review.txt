@@ -1,0 +1,3 @@
+Gemini -- Hello was ok but arm was in centre instead of up
+Not able to animate more than 5 animations and is not able to show more than 2 words and animation also not accurate.
+Add memory to the Agent for lowering down the latency and making dataset

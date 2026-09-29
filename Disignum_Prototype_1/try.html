@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Model Controller</title>
+    <!-- Use Tailwind CSS for a modern, responsive design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the app container */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100vh;
+            background-color: #1a202c; /* Dark background */
+            font-family: 'Inter', sans-serif;
+            color: #e2e8f0;
+            overflow: hidden;
+        }
+
+        /* Styles for the 3D scene canvas */
+        #scene-container {
+            flex-grow: 1;
+            position: relative;
+            min-height: 50vh;
+        }
+
+        /* Styles for the control panel */
+        .controls-panel {
+            background-color: #2d3748;
+            padding: 1.5rem;
+            border-top-left-radius: 1rem;
+            border-top-right-radius: 1rem;
+            box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1), 0 -2px 4px -1px rgba(0, 0, 0, 0.06);
+            display: grid;
+            gap: 1.5rem;
+            grid-template-columns: repeat(1, minmax(0, 1fr));
+            overflow-y: auto; /* Allow scrolling for many controls */
+        }
+
+        /* Responsive grid for larger screens */
+        @media (min-width: 640px) {
+            .app-container {
+                flex-direction: row;
+            }
+            .controls-panel {
+                width: 320px; /* Fixed width for controls on desktop */
+                height: 100%;
+                border-top-left-radius: 1rem;
+                border-bottom-left-radius: 1rem;
+                border-top-right-radius: 0;
+                border-bottom-right-radius: 0;
+                box-shadow: -4px 0 6px -1px rgba(0, 0, 0, 0.1), -2px 0 4px -1-px rgba(0, 0, 0, 0.06);
+            }
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Styles for number input boxes */
+        input[type=number] {
+            width: 100%;
+            padding: 8px 12px;
+            background-color: #4a5568;
+            border: 2px solid #2d3748;
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-size: 14px;
+            transition: border-color 0.2s ease;
+        }
+        input[type=number]:focus {
+            outline: none;
+            border-color: #4299e1;
+            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+        }
+        input[type=number]:hover {
+            border-color: #4299e1;
+        }
+        .range-info {
+            font-size: 12px;
+            color: #a0aec0;
+            margin-top: 2px;
+        }
+    </style>
+</head>
+<body class="bg-gray-900">
+
+    <div class="app-container">
+        <!-- Main container for the 3D scene -->
+        <div id="scene-container" class="relative"></div>
+
+        <!-- Speech Recognition Panel -->
+        <div class="absolute top-4 left-4 right-4 bg-gray-800 p-4 rounded-lg shadow-lg z-10 flex flex-col md:flex-row gap-2 items-center">
+            <button id="start-btn" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors">
+                Start Listening
+            </button>
+            <button id="stop-btn" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors" style="display: none;">
+                Stop Listening
+            </button>
+            <div id="connection-status" class="hidden md:flex items-center ml-2">
+                <span class="h-3 w-3 rounded-full bg-red-500 mr-2" id="status-indicator"></span>
+                <span class="text-sm text-gray-300" id="status-text">Disconnected</span>
+            </div>
+            <div id="speech-status" class="ml-2 text-sm text-gray-300">
+                Ready to listen for sign language descriptions
+            </div>
+        </div>
+
+        <!-- Transcript Display -->
+        <div class="absolute top-20 left-4 right-4 bg-gray-800 p-3 rounded-lg shadow-lg z-10">
+            <p id="transcript" class="text-white text-sm">No speech detected yet.</p>
+        </div>
+
+        <!-- Control Panel -->
+        <div class="controls-panel">
+            <h2 class="text-xl font-bold mb-4 text-center">Model Controls</h2>
+
+            <!-- Head Controls -->
+            <div class="control-group">
+                <label for="head-y-input" class="block text-sm font-medium mb-1">Head Y Rotation</label>
+                <!-- Updated head rotation range to match human neck movement -->
+                <input type="number" id="head-y-input" min="-80" max="80" value="0" step="1">
+                <div class="range-info">Range: -80° to 80° (natural neck rotation)</div>
+            </div>
+
+            <hr class="border-gray-600 my-4" />
+
+            <!-- Left Arm, Elbow & Hand Controls -->
+            <h3 class="text-lg font-semibold mb-2">Left Arm, Elbow & Hand</h3>
+            <div class="control-group">
+                <!-- Updated arm X rotation to match shoulder flexion/extension -->
+                <label for="left-arm-x-input" class="block text-sm font-medium mb-1">Arm X Rotation (Forward/Back)</label>
+                <input type="number" id="left-arm-x-input" min="-60" max="180" value="0" step="1">
+                <div class="range-info">Range: -60° to 180° (shoulder flexion/extension)</div>
+            </div>
+            <div class="control-group">
+                <!-- Added arm Y rotation for shoulder internal/external rotation -->
+                <label for="left-arm-y-input" class="block text-sm font-medium mb-1">Arm Y Rotation (Internal/External)</label>
+                <input type="number" id="left-arm-y-input" min="-90" max="90" value="0" step="1">
+                <div class="range-info">Range: -90° to 90° (shoulder rotation)</div>
+            </div>
+            <div class="control-group">
+                <!-- Updated arm Z rotation to match shoulder abduction -->
+                <label for="left-arm-z-input" class="block text-sm font-medium mb-1">Arm Z Rotation (Up/Down)</label>
+                <input type="number" id="left-arm-z-input" min="-30" max="180" value="0" step="1">
+                <div class="range-info">Range: -30° to 180° (shoulder abduction)</div>
+            </div>
+            <div class="control-group">
+                <!-- Updated elbow range to match human elbow flexion -->
+                <label for="left-elbow-x-input" class="block text-sm font-medium mb-1">Elbow X Rotation</label>
+                <input type="number" id="left-elbow-x-input" min="0" max="145" value="0" step="1">
+                <div class="range-info">Range: 0° to 145° (elbow flexion only)</div>
+            </div>
+            <div class="control-group">
+                <!-- Added elbow up/down (Z) control -->
+                <label for="left-elbow-z-input" class="block text-sm font-medium mb-1">Elbow Z Rotation (Up/Down)</label>
+                <input type="number" id="left-elbow-z-input" min="-45" max="45" value="0" step="1">
+                <div class="range-info">Range: -45° to 45° (elbow varus/valgus)</div>
+            </div>
+            <div class="control-group">
+                <!-- Updated hand X rotation to match wrist flexion/extension -->
+                <label for="left-hand-x-input" class="block text-sm font-medium mb-1">Hand X Rotation (Flex/Extend)</label>
+                <input type="number" id="left-hand-x-input" min="-80" max="70" value="0" step="1">
+                <div class="range-info">Range: -80° to 70° (wrist flexion/extension)</div>
+            </div>
+            <div class="control-group">
+                <!-- Updated hand Y rotation for forearm pronation/supination -->
+                <label for="left-hand-y-input" class="block text-sm font-medium mb-1">Hand Y Rotation (Twist)</label>
+                <input type="number" id="left-hand-y-input" min="-80" max="80" value="0" step="1">
+                <div class="range-info">Range: -80° to 80° (forearm rotation)</div>
+            </div>
+            <div class="control-group">
+                <!-- Updated hand Z rotation to match wrist deviation -->
+                <label for="left-hand-z-input" class="block text-sm font-medium mb-1">Hand Z Rotation (Side bend)</label>
+                <input type="number" id="left-hand-z-input" min="-30" max="20" value="0" step="1">
+                <div class="range-info">Range: -30° to 20° (wrist deviation)</div>
+            </div>
+
+            <hr class="border-gray-600 my-4" />
+
+            <!-- Right Arm, Elbow & Hand Controls -->
+            <h3 class="text-lg font-semibold mb-2">Right Arm, Elbow & Hand</h3>
+            <div class="control-group">
+                <!-- Updated right arm ranges to match left arm -->
+                <label for="right-arm-x-input" class="block text-sm font-medium mb-1">Arm X Rotation (Forward/Back)</label>
+                <input type="number" id="right-arm-x-input" min="-60" max="180" value="0" step="1">
+                <div class="range-info">Range: -60° to 180° (shoulder flexion/extension)</div>
+            </div>
+            <div class="control-group">
+                <!-- Added right arm Y rotation -->
+                <label for="right-arm-y-input" class="block text-sm font-medium mb-1">Arm Y Rotation (Internal/External)</label>
+                <input type="number" id="right-arm-y-input" min="-90" max="90" value="0" step="1">
+                <div class="range-info">Range: -90° to 90° (shoulder rotation)</div>
+            </div>
+            <div class="control-group">
+                <label for="right-arm-z-input" class="block text-sm font-medium mb-1">Arm Z Rotation (Up/Down)</label>
+                <input type="number" id="right-arm-z-input" min="-30" max="180" value="0" step="1">
+                <div class="range-info">Range: -30° to 180° (shoulder abduction)</div>
+            </div>
+            <div class="control-group">
+                <label for="right-elbow-x-input" class="block text-sm font-medium mb-1">Elbow X Rotation</label>
+                <input type="number" id="right-elbow-x-input" min="0" max="145" value="0" step="1">
+                <div class="range-info">Range: 0° to 145° (elbow flexion only)</div>
+            </div>
+            <div class="control-group">
+                <!-- Added elbow up/down (Z) control -->
+                <label for="right-elbow-z-input" class="block text-sm font-medium mb-1">Elbow Z Rotation (Up/Down)</label>
+                <input type="number" id="right-elbow-z-input" min="-45" max="45" value="0" step="1">
+                <div class="range-info">Range: -45° to 45° (elbow varus/valgus)</div>
+            </div>
+            <div class="control-group">
+                <label for="right-hand-x-input" class="block text-sm font-medium mb-1">Hand X Rotation (Flex/Extend)</label>
+                <input type="number" id="right-hand-x-input" min="-80" max="70" value="0" step="1">
+                <div class="range-info">Range: -80° to 70° (wrist flexion/extension)</div>
+            </div>
+            <div class="control-group">
+                <label for="right-hand-y-input" class="block text-sm font-medium mb-1">Hand Y Rotation (Twist)</label>
+                <input type="number" id="right-hand-y-input" min="-80" max="80" value="0" step="1">
+                <div class="range-info">Range: -80° to 80° (forearm rotation)</div>
+            </div>
+            <div class="control-group">
+                <label for="right-hand-z-input" class="block text-sm font-medium mb-1">Hand Z Rotation (Side bend)</label>
+                <input type="number" id="right-hand-z-input" min="-30" max="20" value="0" step="1">
+                <div class="range-info">Range: -30° to 20° (wrist deviation)</div>
+            </div>
+
+            <hr class="border-gray-600 my-4" />
+
+            <!-- Left Finger Controls (3 joints each) -->
+            <h3 class="text-lg font-semibold mb-2">Left Fingers (3 joints)</h3>
+            <div class="space-y-4">
+                <div class="control-group">
+                    <!-- Updated thumb ranges to match real thumb anatomy -->
+                    <label for="left-thumb-1-x-input" class="block text-sm font-medium mb-1">Thumb Joint 1 (MCP)</label>
+                    <input type="number" id="left-thumb-1-x-input" min="-60" max="60" value="0" step="1">
+                    <div class="range-info">Range: -60° to 60° (thumb MCP flexion/extension)</div>
+                    <label for="left-thumb-2-x-input" class="block text-sm font-medium mb-1 mt-2">Thumb Joint 2 (PIP)</label>
+                    <input type="number" id="left-thumb-2-x-input" min="-10" max="80" value="0" step="1">
+                    <div class="range-info">Range: -10° to 80° (thumb PIP flexion)</div>
+                    <label for="left-thumb-3-x-input" class="block text-sm font-medium mb-1 mt-2">Thumb Joint 3 (DIP)</label>
+                    <input type="number" id="left-thumb-3-x-input" min="-20" max="90" value="0" step="1">
+                    <div class="range-info">Range: -20° to 90° (thumb DIP flexion/extension)</div>
+                </div>
+                <div class="control-group">
+                    <!-- Updated finger ranges to match real finger anatomy -->
+                    <label for="left-index-1-z-input" class="block text-sm font-medium mb-1">Index Joint 1 (MCP)</label>
+                    <input type="number" id="left-index-1-z-input" min="-30" max="90" value="0" step="1">
+                    <div class="range-info">Range: -30° to 90° (index MCP flexion/extension)</div>
+                    <label for="left-index-2-z-input" class="block text-sm font-medium mb-1 mt-2">Index Joint 2 (PIP)</label>
+                    <input type="number" id="left-index-2-z-input" min="0" max="120" value="0" step="1">
+                    <div class="range-info">Range: 0° to 120° (index PIP flexion)</div>
+                    <label for="left-index-3-z-input" class="block text-sm font-medium mb-1 mt-2">Index Joint 3 (DIP)</label>
+                    <input type="number" id="left-index-3-z-input" min="0" max="80" value="0" step="1">
+                    <div class="range-info">Range: 0° to 80° (index DIP flexion)</div>
+                </div>
+                <div class="control-group">
+                    <label for="left-middle-1-z-input" class="block text-sm font-medium mb-1">Middle Joint 1 (MCP)</label>
+                    <input type="number" id="left-middle-1-z-input" min="-30" max="90" value="0" step="1">
+                    <div class="range-info">Range: -30° to 90° (middle MCP flexion/extension)</div>
+                    <label for="left-middle-2-z-input" class="block text-sm font-medium mb-1 mt-2">Middle Joint 2 (PIP)</label>
+                    <input type="number" id="left-middle-2-z-input" min="0" max="120" value="0" step="1">
+                    <div class="range-info">Range: 0° to 120° (middle PIP flexion)</div>
+                    <label for="left-middle-3-z-input" class="block text-sm font-medium mb-1 mt-2">Middle Joint 3 (DIP)</label>
+                    <input type="number" id="left-middle-3-z-input" min="0" max="80" value="0" step="1">
+                    <div class="range-info">Range: 0° to 80° (middle DIP flexion)</div>
+                </div>
+                <div class="control-group">
+                    <label for="left-ring-1-z-input" class="block text-sm font-medium mb-1">Ring Joint 1 (MCP)</label>
+                    <input type="number" id="left-ring-1-z-input" min="-30" max="90" value="0" step="1">
+                    <div class="range-info">Range: -30° to 90° (ring MCP flexion/extension)</div>
+                    <label for="left-ring-2-z-input" class="block text-sm font-medium mb-1 mt-2">Ring Joint 2 (PIP)</label>
+                    <input type="number" id="left-ring-2-z-input" min="0" max="120" value="0" step="1">
+                    <div class="range-info">Range: 0° to 120° (ring PIP flexion)</div>
+                    <label for="left-ring-3-z-input" class="block text-sm font-medium mb-1 mt-2">Ring Joint 3 (DIP)</label>
+                    <input type="number" id="left-ring-3-z-input" min="0" max="80" value="0" step="1">
+                    <div class="range-info">Range: 0° to 80° (ring DIP flexion)</div>
+                </div>
+                <div class="control-group">
+                    <label for="left-pinky-1-z-input" class="block text-sm font-medium mb-1">Pinky Joint 1 (MCP)</label>
+                    <input type="number" id="left-pinky-1-z-input" min="-30" max="90" value="0" step="1">
+                    <div class="range-info">Range: -30° to 90° (pinky MCP flexion/extension)</div>
+                    <label for="left-pinky-2-z-input" class="block text-sm font-medium mb-1 mt-2">Pinky Joint 2 (PIP)</label>
+                    <input type="number" id="left-pinky-2-z-input" min="0" max="120" value="0" step="1">
+                    <div class="range-info">Range: 0° to 120° (pinky PIP flexion)</div>
+                    <label for="left-pinky-3-z-input" class="block text-sm font-medium mb-1 mt-2">Pinky Joint 3 (DIP)</label>
+                    <input type="number" id="left-pinky-3-z-input" min="0" max="80" value="0" step="1">
+                    <div class="range-info">Range: 0° to 80° (pinky DIP flexion)</div>
+                </div>
+            </div>
+
+            <hr class="border-gray-600 my-4" />
+
+            <!-- Right Finger Controls (3 joints each) -->
+            <h3 class="text-lg font-semibold mb-2">Right Fingers (3 joints)</h3>
+            <div class="space-y-4">
+                <div class="control-group">
+                    <!-- Updated right thumb ranges to match left thumb -->
+                    <label for="right-thumb-1-x-input" class="block text-sm font-medium mb-1">Thumb Joint 1 (MCP)</label>
+                    <input type="number" id="right-thumb-1-x-input" min="-60" max="60" value="0" step="1">
+                    <div class="range-info">Range: -60° to 60° (thumb MCP flexion/extension)</div>
+                    <label for="right-thumb-2-x-input" class="block text-sm font-medium mb-1 mt-2">Thumb Joint 2 (PIP)</label>
+                    <input type="number" id="right-thumb-2-x-input" min="-10" max="80" value="0" step="1">
+                    <div class="range-info">Range: -10° to 80° (thumb PIP flexion)</div>
+                    <label for="right-thumb-3-x-input" class="block text-sm font-medium mb-1 mt-2">Thumb Joint 3 (DIP)</label>
+                    <input type="number" id="right-thumb-3-x-input" min="-20" max="90" value="0" step="1">
+                    <div class="range-info">Range: -20° to 90° (thumb DIP flexion/extension)</div>
+                </div>
+                <div class="control-group">
+                    <!-- Updated right finger ranges to match left fingers -->
+                    <label for="right-index-1-z-input" class="block text-sm font-medium mb-1">Index Joint 1 (MCP)</label>
+                    <input type="number" id="right-index-1-z-input" min="-30" max="90" value="0" step="1">
+                    <div class="range-info">Range: -30° to 90° (index MCP flexion/extension)</div>
+                    <label for="right-index-2-z-input" class="block text-sm font-medium mb-1 mt-2">Index Joint 2 (PIP)</label>
+                    <input type="number" id="right-index-2-z-input" min="0" max="120" value="0" step="1">
+                    <div class="range-info">Range: 0° to 120° (index PIP flexion)</div>
+                    <label for="right-index-3-z-input" class="block text-sm font-medium mb-1 mt-2">Index Joint 3 (DIP)</label>
+                    <input type="number" id="right-index-3-z-input" min="0" max="80" value="0" step="1">
+                    <div class="range-info">Range: 0° to 80° (index DIP flexion)</div>
+                </div>
+                <div class="control-group">
+                    <label for="right-middle-1-z-input" class="block text-sm font-medium mb-1">Middle Joint 1 (MCP)</label>
+                    <input type="number" id="right-middle-1-z-input" min="-30" max="90" value="0" step="1">
+                    <div class="range-info">Range: -30° to 90° (middle MCP flexion/extension)</div>
+                    <label for="right-middle-2-z-input" class="block text-sm font-medium mb-1 mt-2">Middle Joint 2 (PIP)</label>
+                    <input type="number" id="right-middle-2-z-input" min="0" max="120" value="0" step="1">
+                    <div class="range-info">Range: 0° to 120° (middle PIP flexion)</div>
+                    <label for="right-middle-3-z-input" class="block text-sm font-medium mb-1 mt-2">Middle Joint 3 (DIP)</label>
+                    <input type="number" id="right-middle-3-z-input" min="0" max="80" value="0" step="1">
+                    <div class="range-info">Range: 0° to 80° (middle DIP flexion)</div>
+                </div>
+                <div class="control-group">
+                    <label for="right-ring-1-z-input" class="block text-sm font-medium mb-1">Ring Joint 1 (MCP)</label>
+                    <input type="number" id="right-ring-1-z-input" min="-30" max="90" value="0" step="1">
+                    <div class="range-info">Range: -30° to 90° (ring MCP flexion/extension)</div>
+                    <label for="right-ring-2-z-input" class="block text-sm font-medium mb-1 mt-2">Ring Joint 2 (PIP)</label>
+                    <input type="number" id="right-ring-2-z-input" min="0" max="120" value="0" step="1">
+                    <div class="range-info">Range: 0° to 120° (ring PIP flexion)</div>
+                    <label for="right-ring-3-z-input" class="block text-sm font-medium mb-1 mt-2">Ring Joint 3 (DIP)</label>
+                    <input type="number" id="right-ring-3-z-input" min="0" max="80" value="0" step="1">
+                    <div class="range-info">Range: 0° to 80° (ring DIP flexion)</div>
+                </div>
+                <div class="control-group">
+                    <label for="right-pinky-1-z-input" class="block text-sm font-medium mb-1">Pinky Joint 1 (MCP)</label>
+                    <input type="number" id="right-pinky-1-z-input" min="-30" max="90" value="0" step="1">
+                    <div class="range-info">Range: -30° to 90° (pinky MCP flexion/extension)</div>
+                    <label for="right-pinky-2-z-input" class="block text-sm font-medium mb-1 mt-2">Pinky Joint 2 (PIP)</label>
+                    <input type="number" id="right-pinky-2-z-input" min="0" max="120" value="0" step="1">
+                    <div class="range-info">Range: 0° to 120° (pinky PIP flexion)</div>
+                    <label for="right-pinky-3-z-input" class="block text-sm font-medium mb-1 mt-2">Pinky Joint 3 (DIP)</label>
+                    <input type="number" id="right-pinky-3-z-input" min="0" max="80" value="0" step="1">
+                    <div class="range-info">Range: 0° to 80° (pinky DIP flexion)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include necessary three.js libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+
+    <script>
+        // WebSocket connection setup
+        let socket;
+        let isConnected = false;
+        let model = null; // Global model variable accessible by WebSocket handlers
+        let scene, camera, renderer, controls; // Initialize Three.js variables
+        const statusIndicator = document.getElementById('status-indicator');
+        const statusText = document.getElementById('status-text');
+        const transcriptElement = document.getElementById('transcript');
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const speechStatus = document.getElementById('speech-status');
+
+        // Speech Recognition setup
+        let recognition;
+        let isListening = false;
+
+        // WebSocket configuration
+        const WS_HOST = 'localhost';
+        const WS_DEFAULT_PORT = 8765;
+        const WS_ALT_PORT = 8766; // Alternative port if default is in use
+
+        function connectWebSocket() {
+            // Try the default port first
+            tryConnect(WS_DEFAULT_PORT);
+        }
+
+        function tryConnect(port) {
+            // Connect to the AI backend WebSocket server
+            statusText.textContent = `Connecting to port ${port}...`;
+            socket = new WebSocket(`ws://${WS_HOST}:${port}`);
+
+            socket.onopen = function(e) {
+                console.log('WebSocket connection established');
+                isConnected = true;
+                statusIndicator.classList.remove('bg-red-500');
+                statusIndicator.classList.add('bg-green-500');
+                statusText.textContent = 'Connected';
+            };
+
+            socket.onmessage = function(event) {
+                console.log('Message from server:', event.data);
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.movements) {
+                        // Store the movements data if model isn't loaded yet
+                        if (!model) {
+                            console.log('Model not loaded yet, storing movements for later');
+                            window.pendingMovements = data.movements;
+                            statusText.textContent = 'Waiting for model to load...';
+                        } else {
+                            applyMovements(data.movements);
+                            statusText.textContent = 'Animation started!';
+                        }
+                    } else if (data.error) {
+                        console.warn('Error from server:', data.error);
+                        statusText.textContent = 'Error: ' + data.error;
+                    }
+                } catch (e) {
+                    console.error('Error parsing message:', e);
+                    statusText.textContent = 'Error processing response';
+                }
+            };
+
+            socket.onclose = function(event) {
+                console.log('WebSocket connection closed');
+                isConnected = false;
+                statusIndicator.classList.remove('bg-green-500');
+                statusIndicator.classList.add('bg-red-500');
+                statusText.textContent = 'Disconnected';
+
+                // Try to reconnect after 5 seconds
+                setTimeout(connectWebSocket, 5000);
+            };
+
+            socket.onerror = function(error) {
+                console.error('WebSocket error:', error);
+                statusIndicator.classList.remove('bg-green-500');
+                statusIndicator.classList.add('bg-red-500');
+
+                // If we failed on the default port, try the alternative port
+                if (socket.url.includes(`${WS_DEFAULT_PORT}`)) {
+                    console.log(`Trying alternative WebSocket port ${WS_ALT_PORT}`);
+                    statusText.textContent = `Trying alternative port ${WS_ALT_PORT}...`;
+                    setTimeout(() => tryConnect(WS_ALT_PORT), 1000);
+                } else {
+                    statusText.textContent = 'Connection failed';
+                }
+            };
+        }
+
+        // Function to send text via WebSocket (used by speech recognition)
+        function sendTextToWebSocket(text) {
+            if (isConnected && text.trim() !== '') {
+                socket.send(JSON.stringify({
+                    text: text.trim()
+                }));
+                console.log('[v0] Sent speech request for:', text.trim());
+                statusText.textContent = 'Processing...';
+            } else if (!isConnected) {
+                alert('Not connected to the AI service. Please wait for connection.');
+            }
+        }
+
+        // Speech Recognition functions
+        function initSpeechRecognition() {
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+                recognition.lang = 'en-US'; // Changed to en-US for general English; adjust if needed (e.g., 'en-IN')
+                recognition.interimResults = false; // Only final results
+                recognition.continuous = true; // Continuous recognition
+
+                recognition.onstart = function() {
+                    console.log('Speech recognition started');
+                    isListening = true;
+                    startBtn.style.display = 'none';
+                    stopBtn.style.display = 'inline-block';
+                    speechStatus.textContent = 'Listening... Speak now!';
+                    transcriptElement.textContent = 'Listening...';
+                };
+
+                recognition.onresult = function(event) {
+                    // Get the final result
+                    const lastResult = event.results[event.results.length - 1];
+                    if (lastResult.isFinal) {
+                        const transcript = lastResult[0].transcript;
+                        console.log('Final transcript:', transcript);
+                        transcriptElement.textContent = `Detected: ${transcript}`;
+                        // Send the transcript via WebSocket
+                        sendTextToWebSocket(transcript);
+                    }
+                };
+
+                recognition.onerror = function(event) {
+                    console.error('Speech recognition error:', event.error);
+                    speechStatus.textContent = `Error: ${event.error}`;
+                    transcriptElement.textContent = 'Error in recognition';
+                    stopListening();
+                };
+
+                recognition.onend = function() {
+                    console.log('Speech recognition ended');
+                    if (isListening) {
+                        // Restart if still supposed to be listening
+                        recognition.start();
+                    } else {
+                        startBtn.style.display = 'inline-block';
+                        stopBtn.style.display = 'none';
+                        speechStatus.textContent = 'Ready to listen for sign language descriptions';
+                        transcriptElement.textContent = 'No speech detected yet.';
+                    }
+                };
+            } else {
+                alert('Speech recognition not supported in this browser.');
+                speechStatus.textContent = 'Speech recognition not supported';
+            }
+        }
+
+        function startListening() {
+            if (recognition) {
+                isListening = true;
+                recognition.start();
+            }
+        }
+
+        function stopListening() {
+            if (recognition) {
+                isListening = false;
+                recognition.stop();
+            }
+        }
+
+        // Animation state variables
+        let currentAnimation = null;
+        let animationFrameId = null;
+
+        // Function to apply AI-generated movements to the 3D model
+        function applyMovements(movementsArray) {
+            if (!model) {
+                console.error('Model not loaded yet');
+                return;
+            }
+
+            // Stop any current animation
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+
+            // Store the animation sequence
+            currentAnimation = {
+                frames: movementsArray,
+                currentFrameIndex: 0,
+                startTime: null
+            };
+
+            // Start the animation
+            animateNextFrame();
+        }
+
+        // Function to animate frames sequentially
+        function animateNextFrame() {
+            if (!currentAnimation || !currentAnimation.frames || currentAnimation.currentFrameIndex >= currentAnimation.frames.length) {
+                // Animation complete
+                currentAnimation = null;
+                return;
+            }
+
+            const now = performance.now();
+            if (!currentAnimation.startTime) {
+                currentAnimation.startTime = now;
+            }
+
+            const currentFrame = currentAnimation.frames[currentAnimation.currentFrameIndex];
+            const duration = currentFrame.duration || 1000; // Default to 1 second if not specified
+            const elapsedTime = now - currentAnimation.startTime;
+
+            if (elapsedTime >= duration) {
+                // Move to next frame
+                currentAnimation.currentFrameIndex++;
+                currentAnimation.startTime = now;
+
+                if (currentAnimation.currentFrameIndex < currentAnimation.frames.length) {
+                    // Apply the next frame immediately
+                    applyFrame(currentAnimation.frames[currentAnimation.currentFrameIndex]);
+                } else {
+                    // Animation complete
+                    currentAnimation = null;
+                    return;
+                }
+            } else {
+                // Interpolate between frames if there's a next frame
+                if (currentAnimation.currentFrameIndex < currentAnimation.frames.length - 1) {
+                    const nextFrame = currentAnimation.frames[currentAnimation.currentFrameIndex + 1];
+                    const progress = elapsedTime / duration;
+                    interpolateFrames(currentFrame, nextFrame, progress);
+                } else {
+                    // Just apply the current frame if it's the last one
+                    applyFrame(currentFrame);
+                }
+            }
+
+            // Continue animation
+            animationFrameId = requestAnimationFrame(animateNextFrame);
+        }
+
+        // Apply a single frame of movement
+        function applyFrame(frame) {
+            console.log('[v0] Applying frame:', frame);
+
+            const boneRotations = {
+                'mixamorigHead': { y: frame.head_y },
+                'mixamorigLeftArm': { x: frame.left_arm_x, y: frame.left_arm_y, z: frame.left_arm_z },
+                'mixamorigRightArm': { x: frame.right_arm_x, y: frame.right_arm_y, z: frame.right_arm_z },
+                'mixamorigLeftForeArm': { x: frame.left_elbow_x, z: frame.left_elbow_z },
+                'mixamorigRightForeArm': { x: frame.right_elbow_x, z: frame.right_elbow_z },
+                'mixamorigLeftHand': { x: frame.left_hand_x, y: frame.left_hand_y, z: frame.left_hand_z },
+                'mixamorigRightHand': { x: frame.right_hand_x, y: frame.right_hand_y, z: frame.right_hand_z },
+                // Fingers
+                'mixamorigLeftHandThumb1': { x: frame.left_thumb_1_x },
+                'mixamorigLeftHandThumb2': { x: frame.left_thumb_2_x },
+                'mixamorigLeftHandThumb3': { x: frame.left_thumb_3_x },
+                'mixamorigLeftHandIndex1': { z: frame.left_index_1_z },
+                'mixamorigLeftHandIndex2': { z: frame.left_index_2_z },
+                'mixamorigLeftHandIndex3': { z: frame.left_index_3_z },
+                'mixamorigLeftHandMiddle1': { z: frame.left_middle_1_z },
+                'mixamorigLeftHandMiddle2': { z: frame.left_middle_2_z },
+                'mixamorigLeftHandMiddle3': { z: frame.left_middle_3_z },
+                'mixamorigLeftHandRing1': { z: frame.left_ring_1_z },
+                'mixamorigLeftHandRing2': { z: frame.left_ring_2_z },
+                'mixamorigLeftHandRing3': { z: frame.left_ring_3_z },
+                'mixamorigLeftHandPinky1': { z: frame.left_pinky_1_z },
+                'mixamorigLeftHandPinky2': { z: frame.left_pinky_2_z },
+                'mixamorigLeftHandPinky3': { z: frame.left_pinky_3_z },
+                'mixamorigRightHandThumb1': { x: frame.right_thumb_1_x },
+                'mixamorigRightHandThumb2': { x: frame.right_thumb_2_x },
+                'mixamorigRightHandThumb3': { x: frame.right_thumb_3_x },
+                'mixamorigRightHandIndex1': { z: frame.right_index_1_z },
+                'mixamorigRightHandIndex2': { z: frame.right_index_2_z },
+                'mixamorigRightHandIndex3': { z: frame.right_index_3_z },
+                'mixamorigRightHandMiddle1': { z: frame.right_middle_1_z },
+                'mixamorigRightHandMiddle2': { z: frame.right_middle_2_z },
+                'mixamorigRightHandMiddle3': { z: frame.right_middle_3_z },
+                'mixamorigRightHandRing1': { z: frame.right_ring_1_z },
+                'mixamorigRightHandRing2': { z: frame.right_ring_2_z },
+                'mixamorigRightHandRing3': { z: frame.right_ring_3_z },
+                'mixamorigRightHandPinky1': { z: frame.right_pinky_1_z },
+                'mixamorigRightHandPinky2': { z: frame.right_pinky_2_z },
+                'mixamorigRightHandPinky3': { z: frame.right_pinky_3_z }
+            };
+
+            // Apply rotations to bones
+            for (const [boneName, rotation] of Object.entries(boneRotations)) {
+                const bone = model.getObjectByName(boneName);
+                if (bone) {
+                    // Update the bone rotation
+                    if (rotation.x !== undefined) {
+                        bone.rotation.x = THREE.MathUtils.degToRad(rotation.x);
+                        console.log(`[v0] Applied ${boneName} X rotation: ${rotation.x}°`);
+                        // Update corresponding input if it exists
+                        updateInputValue(boneName, 'x', rotation.x);
+                    }
+                    if (rotation.y !== undefined) {
+                        bone.rotation.y = THREE.MathUtils.degToRad(rotation.y);
+                        console.log(`[v0] Applied ${boneName} Y rotation: ${rotation.y}°`);
+                        updateInputValue(boneName, 'y', rotation.y);
+                    }
+                    if (rotation.z !== undefined) {
+                        bone.rotation.z = THREE.MathUtils.degToRad(rotation.z);
+                        console.log(`[v0] Applied ${boneName} Z rotation: ${rotation.z}°`);
+                        updateInputValue(boneName, 'z', rotation.z);
+                    }
+                } else {
+                    console.warn(`[v0] Bone not found: ${boneName}`);
+                }
+            }
+        }
+
+        // Interpolate between two frames for smooth animation
+        function interpolateFrames(frameA, frameB, progress) {
+            // Create an interpolated frame
+            const interpolatedFrame = {};
+
+            // Interpolate all properties
+            for (const key in frameA) {
+                if (key !== 'duration' && frameB[key] !== undefined) {
+                    interpolatedFrame[key] = frameA[key] + (frameB[key] - frameA[key]) * progress;
+                } else {
+                    interpolatedFrame[key] = frameA[key];
+                }
+            }
+
+            // Apply the interpolated frame
+            applyFrame(interpolatedFrame);
+        }
+
+        // Helper function to update input values when AI movements are applied
+        function updateInputValue(boneName, axis, value) {
+            // Map bone names to input IDs
+            const boneToInputMap = {
+                'mixamorigHead': {'y': 'head-y-input'},
+                'mixamorigLeftArm': {'x': 'left-arm-x-input', 'y': 'left-arm-y-input', 'z': 'left-arm-z-input'},
+                'mixamorigRightArm': {'x': 'right-arm-x-input', 'y': 'right-arm-y-input', 'z': 'right-arm-z-input'},
+                'mixamorigLeftForeArm': {'x': 'left-elbow-x-input', 'z': 'left-elbow-z-input'},
+                'mixamorigRightForeArm': {'x': 'right-elbow-x-input', 'z': 'right-elbow-z-input'},
+                'mixamorigLeftHand': {'x': 'left-hand-x-input', 'y': 'left-hand-y-input', 'z': 'left-hand-z-input'},
+                'mixamorigRightHand': {'x': 'right-hand-x-input', 'y': 'right-hand-y-input', 'z': 'right-hand-z-input'},
+                // Add mappings for all other bones and controls
+            };
+
+            if (boneToInputMap[boneName] && boneToInputMap[boneName][axis]) {
+                const inputId = boneToInputMap[boneName][axis];
+                const input = document.getElementById(inputId);
+                if (input) {
+                    input.value = value;
+                }
+            }
+        }
+
+        // Set up event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Speech recognition button listeners
+            startBtn.addEventListener('click', startListening);
+            stopBtn.addEventListener('click', stopListening);
+
+            // Connect to WebSocket when page loads
+            connectWebSocket();
+        });
+
+        // Use window.onload to ensure the entire page is loaded before initializing
+        window.onload = function() {
+            // Initialize speech recognition
+            initSpeechRecognition();
+
+            // Scene setup
+            const sceneContainer = document.getElementById('scene-container');
+            // Removed local model declaration since it's now global
+
+            // Define the path to the 3D model
+            const modelPath = 'https://threejs.org/examples/models/gltf/Soldier.glb';
+
+            // Initialize the 3D scene
+            function init() {
+                // 1. Scene
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x1a202c);
+
+                // 2. Camera
+                camera = new THREE.PerspectiveCamera(75, sceneContainer.clientWidth / sceneContainer.clientHeight, 0.1, 1000);
+                camera.position.set(0, 1.5, 3);
+
+                // 3. Renderer
+                renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setPixelRatio(window.devicePixelRatio);
+                renderer.setSize(sceneContainer.clientWidth, sceneContainer.clientHeight);
+                renderer.outputEncoding = THREE.sRGBEncoding;
+                sceneContainer.appendChild(renderer.domElement);
+
+                // 4. Lighting
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+                scene.add(ambientLight);
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+                directionalLight.position.set(5, 5, 5);
+                scene.add(directionalLight);
+
+                // 5. Controls (for camera movement)
+                controls = new THREE.OrbitControls(camera, renderer.domElement);
+                controls.target.set(0, 1.2, 0);
+                controls.update();
+
+                // Load the GLTF model
+                const loader = new THREE.GLTFLoader();
+                loader.load(modelPath, (gltf) => {
+                    model = gltf.scene;
+                    scene.add(model);
+                    console.log('[v0] Model loaded successfully:', model);
+
+                    // Map control sliders to specific bones in the model
+                    setupControls();
+
+                    if (window.pendingMovements) {
+                        console.log('[v0] Applying pending movements to loaded model');
+                        applyMovements(window.pendingMovements);
+                        window.pendingMovements = null;
+                        if (statusText) {
+                            statusText.textContent = 'Animation started!';
+                        }
+                    } else {
+                        if (statusText) {
+                            statusText.textContent = 'Model ready - Connected';
+                        }
+                    }
+
+                }, undefined, (error) => {
+                    console.error('An error occurred while loading the model:', error);
+                    if (statusText) {
+                        statusText.textContent = 'Model loading failed';
+                    }
+                });
+
+                // Handle window resizing
+                window.addEventListener('resize', onWindowResize, false);
+            }
+
+            // Function to find bones and set up slider listeners
+            function setupControls() {
+                if (!model) {
+                    console.error('Model not loaded yet.');
+                    return;
+                }
+
+                const setupBoneControl = (boneName, inputId, rotationAxis) => {
+                    const bone = model.getObjectByName(boneName);
+                    const input = document.getElementById(inputId);
+                    if (bone && input) {
+                        input.addEventListener('input', (event) => {
+                            const value = parseFloat(event.target.value);
+                            bone.rotation[rotationAxis] = THREE.MathUtils.degToRad(value);
+                            console.log(`[v0] Manual control: ${boneName} ${rotationAxis} = ${value}°`);
+                        });
+                    } else {
+                        console.warn(`Bone or input not found: ${boneName} / ${inputId}`);
+                    }
+                };
+
+                // Setup controls for head, arms, elbows, and hands - no transform functions
+                setupBoneControl('mixamorigHead', 'head-y-input', 'y');
+                setupBoneControl('mixamorigLeftArm', 'left-arm-x-input', 'x');
+                setupBoneControl('mixamorigLeftArm', 'left-arm-y-input', 'y');
+                setupBoneControl('mixamorigLeftArm', 'left-arm-z-input', 'z');
+                setupBoneControl('mixamorigRightArm', 'right-arm-x-input', 'x');
+                setupBoneControl('mixamorigRightArm', 'right-arm-y-input', 'y');
+                setupBoneControl('mixamorigRightArm', 'right-arm-z-input', 'z');
+                setupBoneControl('mixamorigLeftForeArm', 'left-elbow-x-input', 'x');
+                setupBoneControl('mixamorigLeftForeArm', 'left-elbow-z-input', 'z');
+                setupBoneControl('mixamorigRightForeArm', 'right-elbow-x-input', 'x');
+                setupBoneControl('mixamorigRightForeArm', 'right-elbow-z-input', 'z');
+                setupBoneControl('mixamorigLeftHand', 'left-hand-x-input', 'x');
+                setupBoneControl('mixamorigLeftHand', 'left-hand-y-input', 'y');
+                setupBoneControl('mixamorigLeftHand', 'left-hand-z-input', 'z');
+                setupBoneControl('mixamorigRightHand', 'right-hand-x-input', 'x');
+                setupBoneControl('mixamorigRightHand', 'right-hand-y-input', 'y');
+                setupBoneControl('mixamorigRightHand', 'right-hand-z-input', 'z');
+
+                // Debug: Let's log all bones to see what's available
+                console.log('Available bones:');
+                model.traverse((child) => {
+                    if (child.isBone) {
+                        console.log('Bone name:', child.name);
+                    }
+                });
+
+                // Setup controls for all three finger joints
+                const fingers = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky'];
+                const sides = ['Left', 'Right'];
+                const joints = ['1', '2', '3'];
+
+                sides.forEach(side => {
+                    fingers.forEach(finger => {
+                        joints.forEach(joint => {
+                            // The bone name convention is consistent: mixamorig + side + hand + finger + joint number
+                            const boneName = `mixamorig${side}Hand${finger}${joint}`;
+
+                            // Thumb uses X-axis rotation, other fingers use Z-axis
+                            if (finger === 'Thumb') {
+                                const inputId = `${side.toLowerCase()}-${finger.toLowerCase()}-${joint}-x-input`;
+                                setupBoneControl(boneName, inputId, 'x');
+                            } else {
+                                const inputId = `${side.toLowerCase()}-${finger.toLowerCase()}-${joint}-z-input`;
+                                setupBoneControl(boneName, inputId, 'z');
+                            }
+                        });
+                    });
+                });
+            }
+
+            // Handle window resizing to keep the scene responsive
+            function onWindowResize() {
+                camera.aspect = sceneContainer.clientWidth / sceneContainer.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(sceneContainer.clientWidth, sceneContainer.clientHeight);
+            }
+
+            // Animation loop
+            function animate() {
+                requestAnimationFrame(animate);
+                controls.update(); // Update controls in the animation loop
+                renderer.render(scene, camera);
+            }
+
+            // Start the application
+            init();
+            animate();
+        };
+    </script>
+</body>
+</html>
