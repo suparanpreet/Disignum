@@ -8,7 +8,7 @@ from typing import List, Optional, Dict
 from animation_database import AnimationDatabase
 from feedback_system import FeedbackSystem
 
-load_dotenv()
+# load_dotenv()
 
 
 class MovementFrame(BaseModel):
@@ -75,11 +75,9 @@ class EnhancedSignLanguageAgent:
         # Initialize database and feedback system
         self.database = AnimationDatabase()
         self.feedback_system = FeedbackSystem()
-        apis = ["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",
-                "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",
-                "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"]  # 55c is jarvis and paid one
+        apis = ["add your openrouter api key"]  # 55c is jarvis and paid one
 
-        # Initialize the LLM
+        # Initialize the LLM"
         # self.llm = LLM(model="gemini/gemini-2.5-flash-preview-05-20", temperature=0.1)
         self.llm = LLM(model="openrouter/openai/gpt-6-luna-pro", base_url="https://openrouter.ai/api/v1", temperature=0.4,api_key=apis[1])
 

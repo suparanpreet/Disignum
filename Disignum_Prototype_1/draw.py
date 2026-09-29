@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from typing import List
 
-load_dotenv()
+# load_dotenv()
 
 
 class MovementFrame(BaseModel):
@@ -67,17 +67,12 @@ class MovementsOutput(BaseModel):
 class SignLanguageAgent:
     def __init__(self, api_key=None):
         # Use provided API key or get from environment
-        # self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
         # if not self.api_key:
         #     raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY environment variable or pass it to the constructor.")
         #
         # Initialize the LLM
         self.llm = LLM(model="gemini/gemini-2.5-flash-preview-05-20", temperature=0.7)
-        # apis = ["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",
-        #         "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",
-        #         "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"]  # 55c is jarvis and paid one
 
-        # self.llm = LLM(model="openrouter/openai/gpt-4o-mini", temperature=0.7, base_url="https://openrouter.ai/api/v1",api_key=apis[1])
 
         # Create the sign language expert agent
         self.sign_language_expert = Agent(
