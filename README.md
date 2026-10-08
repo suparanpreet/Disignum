@@ -25,7 +25,7 @@ We fine-tuned the MarianMT model for Text2Gloss and got excellent accuracy.
 Text2Gloss task was easy, and the open-source datasets were available. The next problem was Gloss2Sign. 
 
 We tried to use MediaPipe and extract key points of human body joints by giving sign language videos. But this process did not work and required a significant amount of computational power, time, and effort. This was our bottleneck at Disignum. 
-We read multiple papers, found different ways, but failed again and again at this step. I also tried to integrate Unity and MediaPipe, but that did not work well either. Training our own transformer model also did not work due to the scarcity of data. So we dropped the project in March 2026. 
+We read multiple papers, found different ways, but failed again and again at this step. I also tried to integrate Unity and MediaPipe, but that did not work well either. Training our own transformer model also did not work due to the scarcity of data. So we dropped the project in April 2026. 
 
 It was a great journey, doing research, building entirely new code by ourselves, testing models, and then failing together. 
 
